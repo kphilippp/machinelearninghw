@@ -1,0 +1,23 @@
+
+#USEFUL NUMPY FUNCTIONS 
+# np.genfromtxt(filename, delimiter=',', dtype=int, ...)
+# Reads data from a text file (in this case, CSV format) and converts it into a NumPy array.
+
+# np.hstack((array1, array2))
+# Horizontally stacks (concatenates) two or more arrays. 
+
+# np.ones(shape)
+# Creates a new NumPy array of the given shape filled entirely with ones.
+
+# np.dot(A, B)
+# Computes the dot product of two arrays. For matrices, this performs matrix multiplication.
+
+# np.mean(array)
+# Calculates the arithmetic mean (average) of the elements in an array.
+
+# np.exp(array)
+# Applies the exponential function elementwise to the input array. 
+
+# np.clip(array, a_min, a_max)
+# Limits (clips) the values in an array so that they fall within the interval [amin⁡,amax⁡][amin​,amax​].
+
