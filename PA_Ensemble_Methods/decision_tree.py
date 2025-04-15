@@ -1,8 +1,3 @@
-# Keven Diaz - KXD210034
-# Kevin Philip - KXP210063
-
-# Decision tree functions pulled from Keven and Tina Nguyen PA2
-
 # decision_tree.py
 # ---------
 # Licensing Information:  You are free to use or extend these projects for
@@ -30,9 +25,19 @@
 # visualize, test, or save the data and results. However, you MAY NOT utilize
 # the package scikit-learn OR ANY OTHER machine learning package in THIS file.
 
+
+#Tina Nguyen NBN210002
+#Keven Diaz KXD210034
+
 import numpy as np
 
-#Import Sklearn Libraries for comparison
+from sklearn.metrics import confusion_matrix
+import graphviz
+from sklearn.tree import DecisionTreeClassifier, export_graphviz
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split
+import pandas as pd
 
 
 def partition(x):
@@ -45,6 +50,7 @@ def partition(x):
       ...
       vk: indices of x == vk }, where [v1, ... vk] are all the unique values in the vector z.
     """
+
     partitions = {}
     for i, value in enumerate(x):
         if value not in partitions:     # make sure the value is unique
@@ -54,10 +60,9 @@ def partition(x):
     return partitions
 
 
-def entropy(y, weights=None):
+def entropy(y):
     """
-    Compute the entropy of a vector y by considering the counts of the unique values (v1, ... vk), in z. 
-    Include the weights of the boosted examples if present
+    Compute the entropy of a vector y by considering the counts of the unique values (v1, ... vk), in z
 
     Returns the entropy of z: H(z) = p(z=v1) log2(p(z=v1)) + ... + p(z=vk) log2(p(z=vk))
     """
@@ -68,16 +73,13 @@ def entropy(y, weights=None):
     return entropy
 
 
-def mutual_information(x, y, weights=None):
+def mutual_information(x, y):
     """
-    
     Compute the mutual information between a data column (x) and the labels (y). The data column is a single attribute
     over all the examples (n x 1). Mutual information is the difference between the entropy BEFORE the split set, and
     the weighted-average entropy of EACH possible split.
 
     Returns the mutual information: I(x, y) = H(y) - H(y | x)
-
-    Compute the weighted mutual information for Boosted learners
     """
 
     H_y = entropy(y)
@@ -91,7 +93,7 @@ def mutual_information(x, y, weights=None):
     return mutual_info
 
 
-def id3(x, y, attribute_value_pairs=None, depth=0, max_depth=5, weights=None):
+def id3(x, y, attribute_value_pairs=None, depth=0, max_depth=5):
     """
     Implements the classical ID3 algorithm given training data (x), training labels (y) and an array of
     attribute-value pairs to consider. This is a recursive algorithm that depends on three termination conditions
@@ -175,85 +177,21 @@ def id3(x, y, attribute_value_pairs=None, depth=0, max_depth=5, weights=None):
     return tree
 
 
-def bootstrap_sampler(x, y, num_samples,  weights=None, ensemble_method="bagging"):
+def predict_example(x, tree):
     """
-    This method sample the dataset where some data points are duplicated 
-    """
-    if ensemble_method == "bagging":
-        indices = np.random.choice(len(x), num_samples, replace=True)
-        return x[indices], y[indices]
-    else:
-        sample_indices = np.random.choice(num_samples, num_samples, p=weights)
-        return (x[sample_indices], y[sample_indices])
-        
+    Predicts the classification label for a single example x using tree by recursively descending the tree until
+    a label/leaf node is reached.
 
-
-def bagging(x, y, max_depth, num_trees):
-    """
-    Implements bagging of multiple id3 trees where each tree trains on a boostrap sample of the original dataset
-    """
-    
-    """
-    What this method does is keeps each tree in an array called ensemble
-    Then for the number of trees you specify, you want to
-    - Get a bootstrapped sample set based on the original data
-    - train a decision tree using the id3 algorithm and the data from step 1
-    - then after train, add it to our list of trees
-
-    """
-
-    ensemble = []
-    for _ in range(num_trees):
-        bootstrappedX, bootstrappedY = bootstrap_sampler(x,y, len(x))
-        trainedTree = id3(bootstrappedX, bootstrappedY, max_depth=max_depth)
-        ensemble.append((1, trainedTree))
-
-
-def boosting(x, y, max_depth, num_stumps):
-
-    """
-    Implements an adaboost algorithm using the id3 algorithm as a base decision tree
-    """
-    """
-    This function first sets the number of examples we have and the weight for each example to 1
-    Then for each weak learned we bootstrap the dataset based on the weights 
-       of each example (higher weights have a higher chance of getting picked)
-    Then we train a tree on that data and get our predictions
-    We then compute error which is the weights * each misclassified example only
-    """
-
-    n = len(x)
-    w = np.ones(n) / n
-    ensemble = []
-
-    for _ in range(num_stumps):
-        strappedX, strappedY = bootstrap_sampler(x, y, n, w, ensemble_method="boosting")
-
-        tree = id3(X_sample, y_sample, max_depth=max_depth)
-        y_pred = np.array([predict_example(xi, tree) for xi in x])
-
-        err = np.sum(w * (y_pred != y))
-        if err == 0:
-            alpha = 1
-        else:
-            alpha = 0.5 * np.log((1 - err) / (err + 1e-10))
-
-        w *= np.exp(-alpha * y * (2 * y_pred - 1))  # 0/1 → -1/+1
-        w /= np.sum(w)
-        ensemble.append((alpha, tree))
-
-    return ensemble
-
-
-
-def predict_example_ens(x, h_ens):
-    """
-    Predicts the classification label for a single example x using a combination of weighted trees
     Returns the predicted label of x according to tree
     """
 
-    # INSERT YOUR CODE HERE. NOTE: THIS IS A RECURSIVE FUNCTION.
-    raise Exception('Function not yet implemented!')
+    # if the tree is just a leaf
+    if not isinstance(tree, dict):
+        return tree
+
+    for (attr_idx, attr_val, true_branch), subtree in tree.items():
+        if (x[attr_idx] == attr_val) == true_branch:
+            return predict_example(x, subtree)
 
 
 def compute_error(y_true, y_pred):
@@ -262,7 +200,6 @@ def compute_error(y_true, y_pred):
 
     Returns the error = (1/n) * sum(y_true != y_pred)
     """
-
     return np.mean(y_true != y_pred)
 
 
@@ -281,7 +218,8 @@ def visualize(tree, depth=0):
 
         # Print the current node: split criterion
         print('|\t' * depth, end='')
-        print('+-- [SPLIT: x{0} = {1}]'.format(split_criterion[0], split_criterion[1]))
+        print(
+            '+-- [SPLIT: x{0} = {1}]'.format(split_criterion[0], split_criterion[1]))
 
         # Print the children
         if type(sub_trees) is dict:
@@ -289,43 +227,153 @@ def visualize(tree, depth=0):
         else:
             print('|\t' * (depth + 1), end='')
             print('+-- [LABEL = {0}]'.format(sub_trees))
-            
-            
-def predict_example(x, tree):
-    """
-    Predicts the classification label for a single example x using tree by recursively descending the tree until
-    a label/leaf node is reached.
-
-    Returns the predicted label of x according to tree
-    """
-
-    # if the tree is just a leaf
-    if not isinstance(tree, dict):
-        return tree
-
-    for (attr_idx, attr_val, true_branch), subtree in tree.items():
-        if (x[attr_idx] == attr_val) == true_branch:
-            return predict_example(x, subtree)
-        
 
 
-if __name__ == '__main__':
-    # Load the training data
-    M = np.genfromtxt('./monks-1.train', missing_values=0, skip_header=0, delimiter=',', dtype=int)
+def split_data(filename):
+
+    M = np.genfromtxt(f'{filename}.train', missing_values=0,
+                      skip_header=0, delimiter=',', dtype=int)
     ytrn = M[:, 0]
     Xtrn = M[:, 1:]
 
     # Load the test data
-    M = np.genfromtxt('./monks-1.test', missing_values=0, skip_header=0, delimiter=',', dtype=int)
+    M = np.genfromtxt(f'{filename}.test', missing_values=0,
+                      skip_header=0, delimiter=',', dtype=int)
     ytst = M[:, 0]
     Xtst = M[:, 1:]
 
-    # Learn a decision tree of depth 3
-    decision_tree = id3(Xtrn, ytrn, max_depth=3)
-    visualize(decision_tree)
+    return Xtrn, ytrn, Xtst, ytst
 
-    # Compute the test error
-    y_pred = [predict_example(x, decision_tree) for x in Xtst]
-    tst_err = compute_error(ytst, y_pred)
 
-    print('Test Error = {0:4.2f}%.'.format(tst_err * 100))
+def learning_curves(Xtrn, ytrn, Xtst, ytst, depths=range(1, 11)):
+    train_errors = []
+    test_errors = []
+
+    for depth in depths:
+        tree = id3(Xtrn, ytrn, max_depth=depth)
+
+        # Compute training error
+        ytrn_pred = [predict_example(x, tree) for x in Xtrn]
+        trn_error = compute_error(ytrn, ytrn_pred)
+
+        # Compute test error
+        ytst_pred = [predict_example(x, tree) for x in Xtst]
+        tst_error = compute_error(ytst, ytst_pred)
+
+        train_errors.append(trn_error)
+        test_errors.append(tst_error)
+
+    return depths, train_errors, test_errors
+
+
+def plotting_curves(depths, train_errors, test_errors, title):
+    plt.plot(depths, train_errors, label="Training Error", linestyle="--")
+    plt.plot(depths, test_errors, label="Test Error")
+    plt.xlabel("Tree Depth")
+    plt.ylabel("Error")
+    plt.title(title)
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+
+def dt_confusion_matrix(y_true, y_pred):
+    TP = np.sum((y_true == 1) & (y_pred == 1))  # True Positives
+    TN = np.sum((y_true == 0) & (y_pred == 0))  # True Negatives
+    FP = np.sum((y_true == 0) & (y_pred == 1))  # False Positives
+    FN = np.sum((y_true == 1) & (y_pred == 0))  # False Negatives
+
+    return TP, FP, FN, TN
+
+
+if __name__ == '__main__':
+
+    monks_datasets = ["monks-1", "monks-2", "monks-3"]
+
+# Part A: Learning curves ------------------------------------------------
+    for dataset in monks_datasets:
+        print(f"Part a: learning {dataset}")
+
+        Xtrn, ytrn, Xtst, ytst = split_data(dataset)
+
+        depths, train_errors, test_errors = learning_curves(
+            Xtrn, ytrn, Xtst, ytst)
+
+        plotting_curves(depths, train_errors, test_errors,
+                        f"Learning Curve for {dataset}")
+
+# Part B: Weak learners -------------------------------------------------
+    Xtrn, ytrn, Xtst, ytst = split_data("monks-1")
+
+    for depth in [1, 2]:
+        print(f"\nPart b: Decision Tree (Depth={depth})")
+
+        decision_tree = id3(Xtrn, ytrn, max_depth=depth)
+        visualize(decision_tree)
+
+        y_pred = np.array([predict_example(x, decision_tree) for x in Xtst])
+
+        TP, FP, FN, TN = dt_confusion_matrix(ytst, y_pred)
+
+        print("\nConfusion Matrix:")
+        # print confusion matrix in 2x2 grid
+        print(np.array([[TN, FP], [FN, TP]]))
+
+# Part C: scikit-learn --------------------------------------------------
+    decision_tree = DecisionTreeClassifier()
+    decision_tree.fit(Xtrn, ytrn)
+    y_pred = decision_tree.predict(Xtst)
+    sklearn_confusion_matrix = np.array(confusion_matrix(ytst, y_pred))
+    print("\nPart c: confusion matrix using scikit-learn:")
+    print(sklearn_confusion_matrix)
+
+    tree_data = export_graphviz(decision_tree)
+    graph = graphviz.Source(tree_data)
+    graph.render("decision_tree")
+    graph.view()  
+
+# Part D: UC Irvine Data Set ----------------------------------------------
+    cryo_data_df = pd.read_csv("Cryotherapy.csv")
+
+    cryo_columns = ['sex', 'age', 'Time', 'Number_of_Warts', 'Type', 'Area', 'Result_of_Treatment']
+    cryo_data_df = cryo_data_df.loc[:, cryo_columns]
+
+    cryo_features = ['sex', 'age', 'Time', 'Number_of_Warts', 'Type', 'Area']
+    cryo_X = cryo_data_df.loc[:, cryo_features]
+    cryo_Y = cryo_data_df.loc[:, ['Result_of_Treatment']]
+
+    continuous_features = ['age', 'Time', 'Number_of_Warts', 'Area']
+
+    for feature in continuous_features:
+        mean_value = cryo_X[feature].mean()
+        cryo_X[feature] = (cryo_X[feature] > mean_value).astype(int)
+
+    cryo_X_trn, cryo_X_tst, cryo_y_trn, cryo_y_tst = train_test_split(cryo_X, cryo_Y, random_state=0, train_size=0.75)
+    
+    # part b: weak learners for UCI dataset
+    for depth in [1, 2]:
+        print(f"\nPart d: Cryotherapy Decision Tree (Depth={depth})")
+
+        cryo_decision_tree = id3(cryo_X_trn.to_numpy(), cryo_y_trn.to_numpy().flatten(), max_depth=depth)
+        visualize(cryo_decision_tree)
+
+        cryo_y_pred = np.array([predict_example(x, cryo_decision_tree) for x in cryo_X_tst.to_numpy()])
+
+        TP, FP, FN, TN = dt_confusion_matrix(cryo_y_tst.to_numpy().flatten(), cryo_y_pred)
+
+        print("\nConfusion Matrix:")
+        # print confusion matrix in 2x2 grid
+        print(np.array([[TN, FP], [FN, TP]]))
+        
+    # part c: scikit-learn for UCI dataset
+    cryo_decision_tree = DecisionTreeClassifier()
+    cryo_decision_tree.fit(cryo_X_trn, cryo_y_trn)
+    cryo_y_pred = cryo_decision_tree.predict(cryo_X_tst)
+    sklearn_confusion_matrix = np.array(confusion_matrix(cryo_y_tst, cryo_y_pred))
+    print("\nPart d: Cryotherapy confusion matrix using scikit-learn:")
+    print(sklearn_confusion_matrix)
+    
+    cryo_tree_data = export_graphviz(cryo_decision_tree)
+    graph = graphviz.Source(cryo_tree_data)
+    graph.render("cryo_decision_tree")
+    graph.view()  
