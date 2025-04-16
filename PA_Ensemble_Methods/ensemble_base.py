@@ -2,6 +2,9 @@
 # Kevin Philip - KXP210063
 
 # Decision tree functions pulled from Keven and Tina Nguyen PA2
+# Decision Tree code from Keven Diaz & Tina Nguyen
+# Discussed implementation with Tina Nguyen and Catherine Le 
+
 
 # decision_tree.py
 # ---------
