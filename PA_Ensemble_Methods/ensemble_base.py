@@ -33,7 +33,13 @@
 import numpy as np
 
 #Import Sklearn Libraries for comparison
+from sklearn.ensemble import BaggingClassifier, AdaBoostClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
 
+import pandas as pd
 
 def partition(x):
     """
@@ -208,6 +214,8 @@ def bagging(x, y, max_depth, num_trees):
         trainedTree = id3(bootstrappedX, bootstrappedY, max_depth=max_depth)
         ensemble.append((1, trainedTree))
 
+    return ensemble
+
 
 def boosting(x, y, max_depth, num_stumps):
 
@@ -219,7 +227,10 @@ def boosting(x, y, max_depth, num_stumps):
     Then for each weak learned we bootstrap the dataset based on the weights 
        of each example (higher weights have a higher chance of getting picked)
     Then we train a tree on that data and get our predictions
-    We then compute error which is the weights * each misclassified example only
+    We then compute error which is the sum of the misclassified examples weights
+    We say the weight of the tree or alpha is 1/2 * the log of 1-error / error + small number
+    Then we can update the weights where the correct examples get a smaller weight while
+        the misclassified examples get a bigger weight, more chance of getting bootstrapped
     """
 
     n = len(x)
@@ -229,7 +240,7 @@ def boosting(x, y, max_depth, num_stumps):
     for _ in range(num_stumps):
         strappedX, strappedY = bootstrap_sampler(x, y, n, w, ensemble_method="boosting")
 
-        tree = id3(X_sample, y_sample, max_depth=max_depth)
+        tree = id3(strappedX, strappedY, max_depth=max_depth)
         y_pred = np.array([predict_example(xi, tree) for xi in x])
 
         err = np.sum(w * (y_pred != y))
@@ -238,7 +249,7 @@ def boosting(x, y, max_depth, num_stumps):
         else:
             alpha = 0.5 * np.log((1 - err) / (err + 1e-10))
 
-        w *= np.exp(-alpha * y * (2 * y_pred - 1))  # 0/1 → -1/+1
+        w *= np.exp(-alpha * y * (2 * y_pred - 1))
         w /= np.sum(w)
         ensemble.append((alpha, tree))
 
@@ -252,8 +263,13 @@ def predict_example_ens(x, h_ens):
     Returns the predicted label of x according to tree
     """
 
-    # INSERT YOUR CODE HERE. NOTE: THIS IS A RECURSIVE FUNCTION.
-    raise Exception('Function not yet implemented!')
+    score = 0
+    for alpha, h in h_ens:
+        pred = predict_example(x, h)
+        vote = 1 if pred == 1 else -1
+        score += alpha * vote
+    return 1 if score >= 0 else 0
+
 
 
 def compute_error(y_true, y_pred):
@@ -262,7 +278,6 @@ def compute_error(y_true, y_pred):
 
     Returns the error = (1/n) * sum(y_true != y_pred)
     """
-
     return np.mean(y_true != y_pred)
 
 
@@ -308,6 +323,28 @@ def predict_example(x, tree):
             return predict_example(x, subtree)
         
 
+def split_data(filename):
+
+    M = np.genfromtxt(f'{filename}.train', missing_values=0,
+                      skip_header=0, delimiter=',', dtype=int)
+    ytrn = M[:, 0]
+    Xtrn = M[:, 1:]
+
+    # Load the test data
+    M = np.genfromtxt(f'{filename}.test', missing_values=0,
+                      skip_header=0, delimiter=',', dtype=int)
+    ytst = M[:, 0]
+    Xtst = M[:, 1:]
+
+    return Xtrn, ytrn, Xtst, ytst
+
+def dt_confusion_matrix(y_true, y_pred):
+    TP = np.sum((y_true == 1) & (y_pred == 1))  # True Positives
+    TN = np.sum((y_true == 0) & (y_pred == 0))  # True Negatives
+    FP = np.sum((y_true == 0) & (y_pred == 1))  # False Positives
+    FN = np.sum((y_true == 1) & (y_pred == 0))  # False Negatives
+
+    return TN, FP, FN, TP
 
 if __name__ == '__main__':
     # Load the training data
@@ -329,3 +366,63 @@ if __name__ == '__main__':
     tst_err = compute_error(ytst, y_pred)
 
     print('Test Error = {0:4.2f}%.'.format(tst_err * 100))
+
+
+    # Experiments with Ensemble Learning
+
+    monk_datasets = ['monks-1', 'monks-2', 'monks-3']
+
+    for dataset in monk_datasets:
+        print(f"\nPart e: Ensemble Learning for {dataset} ---------------------------------")
+        Xtrn, ytrn, Xtst, ytst = split_data(dataset)
+    
+        # Baggin 💯 
+        for depth in [3, 5]:    
+            for numTrees in [10, 20]:
+                print(f"\n\nBagging: Depth={depth}, Trees={numTrees}")
+                h_ens = bagging(Xtrn, ytrn, max_depth=depth, num_trees=numTrees)
+                y_pred = np.array([predict_example_ens(x, h_ens) for x in Xtst]) 
+                TN, FP, FN, TP = dt_confusion_matrix(ytst, y_pred)
+                print(f"\nTN: {TN}, FP: {FP}\nFN : {FN}, TP: {TP}")
+ 
+        # Boostin 💪
+        for depth in [1, 2]:
+            for k in [20, 40]:
+                print(f"\n\nBoosting: Depth={depth}, Stumps={k}")
+                h_ens = boosting(Xtrn, ytrn, max_depth=depth, num_stumps=k)
+                y_pred = np.array([predict_example_ens(x, h_ens) for x in Xtst])  
+                TN, FP, FN, TP = dt_confusion_matrix(ytst, y_pred)                
+                print(f"\nTN: {TN}, FP: {FP}\nFN : {FN}, TP: {TP}")
+                
+
+
+# Scikit-Learn Part A ------------------------------------------------------------
+    print("\nPart C: Scikit-Learn Ensemble Comparison -----------------")
+    for dataset in monk_datasets:
+        print(f"\nDataset: {dataset}")
+        Xtrn, ytrn, Xtst, ytst = split_data(dataset)
+        
+        # Bagging Experiments
+        for depth in [3,5]:
+            for num_trees in [10,20]:
+                clf = BaggingClassifier(
+                    estimator=DecisionTreeClassifier(max_depth=depth),
+                    n_estimators=num_trees,
+                    bootstrap=True
+                )
+                clf.fit(Xtrn, ytrn)
+                y_pred = clf.predict(Xtst)
+                print(f"\nBagging (depth={depth}, trees={num_trees})")
+                print(confusion_matrix(ytst, y_pred))
+                
+        # Boosting Experiments
+        for depth in [1,2]:
+            for num_stumps in [20,40]:
+                clf = AdaBoostClassifier(
+                    estimator=DecisionTreeClassifier(max_depth=depth),
+                    n_estimators=num_stumps
+                )
+                clf.fit(Xtrn, ytrn)
+                y_pred = clf.predict(Xtst)
+                print(f"\nBoosting (depth={depth}, stumps={num_stumps})")
+                print(confusion_matrix(ytst, y_pred))
